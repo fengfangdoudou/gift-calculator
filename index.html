@@ -618,5 +618,290 @@
   rebuildBdmInputList();
   refreshCalc();
 </script>
+
+<!-- ══════════════════════════════════════════
+     特殊赠品分配模块（独立，不依赖上方数据）
+══════════════════════════════════════════ -->
+<style>
+  .sp-divider {
+    text-align: center;
+    font-size: 12px;
+    color: #bbb;
+    margin: 8px 0 18px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .sp-divider::before, .sp-divider::after {
+    content: ""; flex: 1;
+    height: 1px; background: #E8E0D8;
+  }
+
+  /* 总数 + 赠品名 输入区 */
+  .sp-top-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+  @media (max-width: 480px) { .sp-top-grid { grid-template-columns: 1fr; } }
+
+  /* BDM 行：姓名 | 在职人数 | 分配数量 */
+  .sp-bdm-header,
+  .sp-bdm-row {
+    display: grid;
+    grid-template-columns: 1.6fr 110px 110px;
+    gap: 8px;
+    align-items: center;
+  }
+  @media (max-width: 480px) {
+    .sp-bdm-header,
+    .sp-bdm-row { grid-template-columns: 1fr 80px 80px; gap: 5px; }
+  }
+
+  .sp-bdm-list { display: flex; flex-direction: column; gap: 8px; }
+
+  .sp-result {
+    background: #EDF5D6;
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 14px; font-weight: 700; color: #3D5A3E;
+    text-align: center; min-height: 38px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .sp-result.dim { background: #f5f5f5; color: #bbb; font-weight: 400; }
+
+  .sp-name-fixed {
+    font-size: 14px;
+    padding: 8px 10px;
+    background: #F7FBF2;
+    border: 1.5px solid #D6E8C4;
+    border-radius: 8px;
+    color: #3D5A3E;
+    font-weight: 500;
+    min-height: 38px;
+    display: flex; align-items: center;
+  }
+
+  .sp-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #F0F7EB;
+    border-radius: 10px;
+    padding: 11px 16px;
+    margin-top: 14px;
+    border: 1px solid #D6E8C4;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .sp-summary-item { font-size: 12px; color: #4A6741; font-weight: 600; }
+  .sp-summary-item span { font-size: 18px; font-weight: 800; color: #3D5A3E; margin: 0 3px; }
+  .sp-warn { font-size: 12px; color: #c0756a; margin-top: 8px; display: none; }
+  .sp-warn.show { display: block; }
+
+  .sp-extra-section { margin-top: 14px; border-top: 1px dashed #D6E8C4; padding-top: 12px; }
+  .sp-extra-label { font-size: 12px; color: #999; margin-bottom: 8px; }
+</style>
+
+<div class="container" style="margin-top:0;">
+  <div class="sp-divider">特殊赠品分配（按在职人数比例）</div>
+
+  <div class="card">
+    <div class="card-title">
+      <span class="step-badge" style="background:#7A5C1E;">★</span>
+      特殊赠品分配
+    </div>
+
+    <!-- 总数量 + 赠品名称 -->
+    <div class="sp-top-grid">
+      <div class="field-group">
+        <label>特殊赠品总数量（件）</label>
+        <input type="number" id="spTotal" placeholder="例：50" min="0" />
+      </div>
+      <div class="field-group">
+        <label>赠品名称（选填）</label>
+        <input type="text" id="spGiftName" placeholder="例：定制礼盒" />
+      </div>
+    </div>
+
+    <!-- BDM 列表 -->
+    <div class="sp-bdm-header" style="margin-bottom:6px;">
+      <span class="col-label" style="text-align:left;">BDM 姓名</span>
+      <span class="col-label">在职人数</span>
+      <span class="col-label">分配数量</span>
+    </div>
+    <div class="sp-bdm-list" id="spBdmList"></div>
+
+    <!-- 额外 BDM -->
+    <div class="sp-extra-section">
+      <div class="sp-extra-label">其他 BDM（选填）</div>
+      <div class="sp-bdm-list" id="spExtraList"></div>
+      <button class="btn-add" id="btnAddSpExtra" style="margin-top:8px;">＋ 添加其他 BDM</button>
+    </div>
+
+    <!-- 汇总 -->
+    <div class="sp-summary">
+      <div class="sp-summary-item">总在职人数：<span id="spTotalStaff">—</span> 人</div>
+      <div class="sp-summary-item">已分配：<span id="spAllocated">—</span> 件</div>
+      <div class="sp-summary-item">剩余：<span id="spRemain">—</span> 件</div>
+    </div>
+    <div class="sp-warn" id="spWarn"></div>
+  </div>
+</div>
+
+<script>
+  /* ════════════════════════════════
+     特殊赠品分配
+  ════════════════════════════════ */
+  const SP_FIXED_NAMES = ["姬羽茜","陈启韵","张义强","段兆烜","刘麒麟","秦亚辉","桑亚东","李锦辉","熊小忠"];
+
+  // 固定 BDM 数据
+  let spBdms = SP_FIXED_NAMES.map(name => ({ name, staff: "" }));
+  // 额外 BDM 数据
+  let spExtras = [];
+
+  /* ── 初始化固定 BDM 行（只建一次） ── */
+  function initSpBdmRow(i, isExtra) {
+    const data = isExtra ? spExtras : spBdms;
+    const row = document.createElement("div");
+    row.className = "sp-bdm-row";
+
+    // 姓名
+    if (isExtra) {
+      const nameEl = document.createElement("input");
+      nameEl.type = "text"; nameEl.placeholder = "姓名";
+      nameEl.value = data[i].name;
+      nameEl.addEventListener("input", e => { spExtras[i].name = e.target.value; spRefreshCalc(); });
+      row.appendChild(nameEl);
+    } else {
+      const nameEl = document.createElement("div");
+      nameEl.className = "sp-name-fixed";
+      nameEl.textContent = data[i].name;
+      row.appendChild(nameEl);
+    }
+
+    // 在职人数
+    const staffEl = document.createElement("input");
+    staffEl.type = "number"; staffEl.placeholder = "人数"; staffEl.min = "0";
+    staffEl.value = data[i].staff;
+    staffEl.addEventListener("input", e => {
+      data[i].staff = e.target.value;
+      spRefreshCalc();
+    });
+    row.appendChild(staffEl);
+
+    // 分配数量（只读展示）
+    const resultEl = document.createElement("div");
+    resultEl.className = "sp-result dim";
+    resultEl.textContent = "—";
+    row.appendChild(resultEl);
+
+    // 额外行有删除按钮
+    if (isExtra) {
+      const delBtn = document.createElement("button");
+      delBtn.className = "btn-remove"; delBtn.innerHTML = "×";
+      delBtn.style.cssText = "width:32px;height:32px;";
+      delBtn.addEventListener("click", () => {
+        spExtras.splice(i, 1);
+        rebuildSpExtraList();
+        spRefreshCalc();
+      });
+      row.style.gridTemplateColumns = "1.6fr 110px 110px 36px";
+      row.appendChild(delBtn);
+    }
+
+    return row;
+  }
+
+  function rebuildSpBdmList() {
+    const list = document.getElementById("spBdmList");
+    list.innerHTML = "";
+    spBdms.forEach((_, i) => list.appendChild(initSpBdmRow(i, false)));
+  }
+
+  function rebuildSpExtraList() {
+    const list = document.getElementById("spExtraList");
+    list.innerHTML = "";
+    spExtras.forEach((_, i) => list.appendChild(initSpBdmRow(i, true)));
+  }
+
+  /* ── 刷新计算（不重建 input） ── */
+  function spRefreshCalc() {
+    const total = parseFloat(document.getElementById("spTotal").value);
+    const allData = [
+      ...spBdms.map((b, i) => ({ ...b, listId: "spBdmList", rowIdx: i })),
+      ...spExtras.map((b, i) => ({ ...b, listId: "spExtraList", rowIdx: i })),
+    ];
+
+    // 总在职人数
+    const totalStaff = allData.reduce((s, b) => {
+      const v = parseFloat(b.staff);
+      return s + (isNaN(v) ? 0 : v);
+    }, 0);
+
+    document.getElementById("spTotalStaff").textContent = totalStaff > 0 ? totalStaff : "—";
+
+    // 更新每行分配数量
+    const fixedRows  = document.querySelectorAll("#spBdmList .sp-bdm-row");
+    const extraRows  = document.querySelectorAll("#spExtraList .sp-bdm-row");
+
+    let totalAllocated = 0;
+
+    function updateRow(row, staffStr) {
+      const resultEl = row.children[row.children.length - (row.children.length === 4 ? 2 : 1)];
+      // 固定行：children[2]；额外行：children[2]（删除按钮是children[3]）
+      const resEl = isNaN(parseFloat(staffStr)) ? row.children[2] : row.children[2];
+
+      const staff = parseFloat(staffStr);
+      if (!isNaN(total) && total > 0 && !isNaN(staff) && staff > 0 && totalStaff > 0) {
+        const alloc = Math.round(total * staff / totalStaff);
+        resEl.className = "sp-result";
+        resEl.textContent = alloc + " 件";
+        totalAllocated += alloc;
+      } else {
+        resEl.className = "sp-result dim";
+        resEl.textContent = "—";
+      }
+    }
+
+    fixedRows.forEach((row, i) => updateRow(row, spBdms[i].staff));
+    extraRows.forEach((row, i) => updateRow(row, spExtras[i].staff));
+
+    // 汇总
+    const remain = (!isNaN(total) && total > 0 && totalStaff > 0)
+      ? total - totalAllocated : null;
+
+    document.getElementById("spAllocated").textContent =
+      (totalAllocated > 0) ? totalAllocated : "—";
+    document.getElementById("spRemain").textContent =
+      remain !== null ? remain : "—";
+
+    // 警告：四舍五入后总数可能与输入不等
+    const warn = document.getElementById("spWarn");
+    if (remain !== null && remain !== 0) {
+      warn.textContent = `⚠️ 四舍五入后合计 ${totalAllocated} 件，与总数 ${total} 件相差 ${Math.abs(remain)} 件，可手动调整`;
+      warn.classList.add("show");
+    } else {
+      warn.classList.remove("show");
+    }
+  }
+
+  /* ── 事件 ── */
+  document.getElementById("spTotal").addEventListener("input", spRefreshCalc);
+  document.getElementById("spGiftName").addEventListener("input", () => {});
+
+  document.getElementById("btnAddSpExtra").addEventListener("click", () => {
+    spExtras.push({ name: "", staff: "" });
+    const list = document.getElementById("spExtraList");
+    list.appendChild(initSpBdmRow(spExtras.length - 1, true));
+    spRefreshCalc();
+  });
+
+  /* ── 初始化 ── */
+  rebuildSpBdmList();
+  rebuildSpExtraList();
+  spRefreshCalc();
+</script>
 </body>
 </html>
