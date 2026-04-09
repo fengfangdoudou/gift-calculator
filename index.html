@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>赠品分配数量计算器</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: #FAF7F2;
+      min-height: 100vh;
+      padding: 28px 14px 60px;
+      color: #2d2d2d;
+    }
+
+    .container { max-width: 900px; margin: 0 auto; }
+
+    h1 {
+      text-align: center;
+      font-size: 21px;
+      font-weight: 700;
+      color: #4A6741;
+      margin-bottom: 4px;
+      letter-spacing: 1px;
+    }
+    .subtitle {
+      text-align: center;
+      font-size: 12px;
+      color: #aaa;
+      margin-bottom: 24px;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 14px;
+      box-shadow: 0 2px 14px rgba(74,103,65,.09);
+      padding: 20px 22px;
+      margin-bottom: 18px;
+    }
+
+    .card-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #4A6741;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .card-title::before {
+      content: "";
+      display: inline-block;
+      width: 4px; height: 16px;
+      background: #4A6741;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+
+    .step-arrow {
+      text-align: center;
+      font-size: 22px;
+      color: #B5D4A8;
+      margin: -6px 0 10px;
+      line-height: 1;
+    }
+
+    .step-badge {
+      display: inline-flex;
+      align-items: center; justify-content: center;
+      width: 20px; height: 20px;
+      border-radius: 50%;
+      background: #4A6741;
+      color: #fff;
+      font-size: 11px; font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    input[type="number"], input[type="text"] {
+      border: 1.5px solid #D6E8C4;
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 14px;
+      color: #2d2d2d;
+      background: #FAFFF8;
+      outline: none;
+      transition: border-color .18s;
+      width: 100%;
+    }
+    input:focus { border-color: #4A6741; background: #fff; }
+    input[readonly] { background: #f5f5f5; color: #888; cursor: not-allowed; }
+
+    .col-label { font-size: 11px; color: #999; text-align: center; }
+    .col-label:first-child { text-align: left; }
+
+    /* ── 到货行：名称 | 到货数量 | 箱规 | 占比 | 删除 ── */
+    .arrival-header,
+    .arrival-row {
+      display: grid;
+      grid-template-columns: 1.8fr 110px 90px 90px 36px;
+      gap: 8px;
+      align-items: center;
+    }
+    @media (max-width: 580px) {
+      .arrival-header,
+      .arrival-row { grid-template-columns: 1fr 80px 68px 68px 28px; gap: 5px; }
+    }
+
+    .arrival-list { display: flex; flex-direction: column; gap: 9px; }
+
+    .pct-display {
+      background: #EDF5D6;
+      border-radius: 8px;
+      padding: 8px 6px;
+      font-size: 13px; font-weight: 700; color: #3D5A3E;
+      text-align: center; min-height: 38px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .pct-display.dim { background: #f5f5f5; color: #bbb; font-weight: 400; }
+
+    .arrival-banner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #F0F7EB;
+      border-radius: 10px;
+      padding: 11px 16px;
+      margin-top: 14px;
+      border: 1px solid #D6E8C4;
+    }
+    .arrival-banner .ab-label { font-size: 12px; color: #4A6741; font-weight: 600; }
+    .arrival-banner .ab-value { font-size: 20px; font-weight: 800; color: #3D5A3E; }
+    .arrival-banner .ab-unit  { font-size: 12px; color: #7a9a72; margin-left: 3px; }
+
+    /* ── BDM 输入行：姓名 | 目标 | 差异量 | 净目标 | 删除 ── */
+    .bdm-input-header,
+    .bdm-input-row {
+      display: grid;
+      grid-template-columns: 1.6fr 100px 100px 100px 36px;
+      gap: 8px;
+      align-items: center;
+    }
+    @media (max-width: 580px) {
+      .bdm-input-header,
+      .bdm-input-row { grid-template-columns: 1fr 76px 76px 76px 28px; gap: 5px; }
+    }
+
+    .bdm-input-list { display: flex; flex-direction: column; gap: 9px; }
+
+    .net-display {
+      background: linear-gradient(135deg, #4A6741, #6a9460);
+      border-radius: 8px;
+      padding: 8px 6px;
+      font-size: 13px; font-weight: 700; color: #fff;
+      text-align: center; min-height: 38px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .net-display.dim { background: #f5f5f5; color: #bbb; font-weight: 400; }
+
+    /* ── 分配结果区 ── */
+    .bdm-result-block {
+      margin-top: 20px;
+      border-top: 1.5px dashed #D6E8C4;
+      padding-top: 16px;
+    }
+
+    .bdm-result-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #4A6741;
+      margin-bottom: 10px;
+    }
+
+    /* BDM 分配结果表：赠品名 | 占比 | 件数 | 箱规 | 箱数 */
+    .alloc-header,
+    .alloc-row {
+      display: grid;
+      grid-template-columns: 1.8fr 72px 96px 72px 96px;
+      gap: 8px;
+      align-items: center;
+    }
+    @media (max-width: 580px) {
+      .alloc-header,
+      .alloc-row { grid-template-columns: 1fr 58px 76px 58px 76px; gap: 5px; }
+    }
+
+    .alloc-list { display: flex; flex-direction: column; gap: 6px; }
+
+    .result-pcs {
+      background: #EDF5D6;
+      border-radius: 8px;
+      padding: 7px 6px;
+      font-size: 13px; font-weight: 700; color: #3D5A3E;
+      text-align: center; min-height: 34px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .result-box-val {
+      background: #FFF8E8;
+      border-radius: 8px;
+      padding: 7px 6px;
+      font-size: 13px; font-weight: 700; color: #7A5C1E;
+      text-align: center; min-height: 34px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .result-dim {
+      background: #f5f5f5;
+      border-radius: 8px;
+      padding: 7px 6px;
+      font-size: 13px; color: #bbb;
+      text-align: center; min-height: 34px;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    /* BDM 卡片（每个 BDM 一块） */
+    .bdm-card {
+      background: #F7FBF2;
+      border: 1px solid #D6E8C4;
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin-bottom: 12px;
+    }
+    .bdm-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .bdm-card-name {
+      font-size: 14px;
+      font-weight: 700;
+      color: #3D5A3E;
+    }
+    .bdm-card-net {
+      font-size: 12px;
+      color: #7a9a72;
+      background: #D6E8C4;
+      border-radius: 20px;
+      padding: 3px 10px;
+      font-weight: 600;
+    }
+
+    .btn-remove {
+      background: none;
+      border: 1.5px solid #e0c8c8;
+      border-radius: 8px;
+      color: #c0756a;
+      font-size: 16px;
+      cursor: pointer;
+      width: 36px; height: 36px;
+      display: flex; align-items: center; justify-content: center;
+      transition: background .15s;
+      flex-shrink: 0;
+    }
+    .btn-remove:hover { background: #fdf0ee; }
+
+    .btn-add {
+      margin-top: 11px;
+      width: 100%;
+      padding: 9px;
+      border: 2px dashed #B5D4A8;
+      border-radius: 10px;
+      background: none;
+      color: #4A6741;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background .15s, border-color .15s;
+    }
+    .btn-add:hover { background: #EDF5D6; border-color: #4A6741; }
+
+    .hint { font-size: 11px; color: #bbb; text-align: center; margin-top: 10px; }
+
+    .empty-tip {
+      text-align: center; color: #bbb; font-size: 13px; padding: 18px 0;
+    }
+
+    .alloc-name-cell {
+      font-size: 13px; font-weight: 500;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .alloc-pct-cell  { font-size: 12px; color: #7A5C1E; font-weight: 600; text-align: center; }
+    .alloc-spec-cell { font-size: 12px; color: #999; text-align: center; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h1>🎁 赠品分配数量计算器</h1>
+  <p class="subtitle">先录入总到货，再按各 BDM 目标自动分配</p>
+
+  <!-- ══ STEP 1：总到货 ══ -->
+  <div class="card">
+    <div class="card-title">
+      <span class="step-badge">1</span>
+      总到货登记
+    </div>
+
+    <div class="arrival-header" style="margin-bottom:6px;">
+      <span class="col-label">赠品名称</span>
+      <span class="col-label">到货数量（件）</span>
+      <span class="col-label">箱规（件/箱）</span>
+      <span class="col-label">占总到货比例</span>
+      <span></span>
+    </div>
+    <div class="arrival-list" id="arrivalList"></div>
+    <button class="btn-add" id="btnAddArrival">＋ 添加赠品</button>
+
+    <div class="arrival-banner">
+      <span class="ab-label">总到货数量</span>
+      <div>
+        <span class="ab-value" id="totalArrival">—</span>
+        <span class="ab-unit">件</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="step-arrow">↓</div>
+
+  <!-- ══ STEP 2：BDM 分配 ══ -->
+  <div class="card">
+    <div class="card-title">
+      <span class="step-badge">2</span>
+      BDM 赠品测算
+    </div>
+
+    <!-- BDM 输入列表 -->
+    <div class="bdm-input-header" style="margin-bottom:6px;">
+      <span class="col-label">BDM 姓名</span>
+      <span class="col-label">目标</span>
+      <span class="col-label">差异量</span>
+      <span class="col-label">净目标</span>
+      <span></span>
+    </div>
+    <div class="bdm-input-list" id="bdmInputList"></div>
+    <button class="btn-add" id="btnAddBdm">＋ 添加 BDM</button>
+
+    <!-- 分配结果 -->
+    <div class="bdm-result-block" id="bdmResultBlock" style="display:none;">
+      <div class="bdm-result-title">各 BDM 赠品分配明细</div>
+      <div id="bdmResultCards"></div>
+      <p class="hint">件数 = ⌊净目标 × 到货占比⌋；箱数 = ⌊件数 ÷ 箱规⌋</p>
+    </div>
+
+    <div class="empty-tip" id="bdmEmpty">
+      请先完成第①步录入到货数据，并填写 BDM 信息
+    </div>
+  </div>
+</div>
+
+<script>
+  /* ════════════════════════════════
+     数据
+  ════════════════════════════════ */
+  let arrivals = [
+    { name: "", qty: "", spec: "" },
+    { name: "", qty: "", spec: "" },
+  ];
+
+  let bdms = [
+    { name: "", target: "", diff: "" },
+    { name: "", target: "", diff: "" },
+  ];
+
+  /* ════════════════════════════════
+     工具
+  ════════════════════════════════ */
+  function totalArrivalQty() {
+    return arrivals.reduce((s, a) => {
+      const v = parseFloat(a.qty);
+      return s + (isNaN(v) ? 0 : v);
+    }, 0);
+  }
+
+  function getBdmNet(b) {
+    const t = parseFloat(b.target);
+    const d = parseFloat(b.diff);
+    if (isNaN(t) || isNaN(d)) return null;
+    return t - d;
+  }
+
+  /* ════════════════════════════════
+     到货列表（增删时重建，输入时只刷新计算）
+  ════════════════════════════════ */
+  function initArrivalRow(i) {
+    const row = document.createElement("div");
+    row.className = "arrival-row";
+
+    const nameEl = document.createElement("input");
+    nameEl.type = "text"; nameEl.placeholder = "赠品名称"; nameEl.value = arrivals[i].name;
+    nameEl.addEventListener("input", e => { arrivals[i].name = e.target.value; refreshCalc(); });
+
+    const qtyEl = document.createElement("input");
+    qtyEl.type = "number"; qtyEl.placeholder = "如：600"; qtyEl.min = "0"; qtyEl.value = arrivals[i].qty;
+    qtyEl.addEventListener("input", e => { arrivals[i].qty = e.target.value; refreshCalc(); });
+
+    const specEl = document.createElement("input");
+    specEl.type = "number"; specEl.placeholder = "如：6"; specEl.min = "1"; specEl.value = arrivals[i].spec;
+    specEl.addEventListener("input", e => { arrivals[i].spec = e.target.value; refreshCalc(); });
+
+    const pctEl = document.createElement("div");
+    pctEl.className = "pct-display dim"; pctEl.textContent = "—";
+
+    const delBtn = document.createElement("button");
+    delBtn.className = "btn-remove"; delBtn.innerHTML = "×";
+    delBtn.addEventListener("click", () => { arrivals.splice(i, 1); rebuildArrivalList(); refreshCalc(); });
+
+    row.appendChild(nameEl); row.appendChild(qtyEl); row.appendChild(specEl);
+    row.appendChild(pctEl); row.appendChild(delBtn);
+    return row;
+  }
+
+  function rebuildArrivalList() {
+    const list = document.getElementById("arrivalList");
+    list.innerHTML = "";
+    arrivals.forEach((_, i) => list.appendChild(initArrivalRow(i)));
+  }
+
+  /* ════════════════════════════════
+     BDM 输入列表（增删时重建，输入时只刷新计算）
+  ════════════════════════════════ */
+  function initBdmInputRow(i) {
+    const row = document.createElement("div");
+    row.className = "bdm-input-row";
+
+    const nameEl = document.createElement("input");
+    nameEl.type = "text"; nameEl.placeholder = "姓名"; nameEl.value = bdms[i].name;
+    nameEl.addEventListener("input", e => { bdms[i].name = e.target.value; refreshCalc(); });
+
+    const targetEl = document.createElement("input");
+    targetEl.type = "number"; targetEl.placeholder = "目标"; targetEl.min = "0"; targetEl.value = bdms[i].target;
+    targetEl.addEventListener("input", e => { bdms[i].target = e.target.value; refreshCalc(); });
+
+    const diffEl = document.createElement("input");
+    diffEl.type = "number"; diffEl.placeholder = "差异量"; diffEl.value = bdms[i].diff;
+    diffEl.addEventListener("input", e => { bdms[i].diff = e.target.value; refreshCalc(); });
+
+    const netEl = document.createElement("div");
+    netEl.className = "net-display dim"; netEl.textContent = "—";
+
+    const delBtn = document.createElement("button");
+    delBtn.className = "btn-remove"; delBtn.innerHTML = "×";
+    delBtn.addEventListener("click", () => { bdms.splice(i, 1); rebuildBdmInputList(); refreshCalc(); });
+
+    row.appendChild(nameEl); row.appendChild(targetEl); row.appendChild(diffEl);
+    row.appendChild(netEl); row.appendChild(delBtn);
+    return row;
+  }
+
+  function rebuildBdmInputList() {
+    const list = document.getElementById("bdmInputList");
+    list.innerHTML = "";
+    bdms.forEach((_, i) => list.appendChild(initBdmInputRow(i)));
+  }
+
+  /* ════════════════════════════════
+     刷新所有计算结果（不重建 input）
+  ════════════════════════════════ */
+  function refreshCalc() {
+    const total = totalArrivalQty();
+
+    /* 到货占比 */
+    document.querySelectorAll("#arrivalList .arrival-row").forEach((row, i) => {
+      const pctEl = row.children[3];
+      const qty = parseFloat(arrivals[i].qty);
+      if (!isNaN(qty) && qty > 0 && total > 0) {
+        pctEl.className = "pct-display";
+        pctEl.textContent = (qty / total * 100).toFixed(1) + "%";
+      } else {
+        pctEl.className = "pct-display dim";
+        pctEl.textContent = "—";
+      }
+    });
+
+    document.getElementById("totalArrival").textContent = total > 0 ? total : "—";
+
+    /* BDM 净目标 */
+    document.querySelectorAll("#bdmInputList .bdm-input-row").forEach((row, i) => {
+      const netEl = row.children[3];
+      const net = getBdmNet(bdms[i]);
+      if (net !== null) {
+        netEl.className = "net-display";
+        netEl.textContent = net;
+      } else {
+        netEl.className = "net-display dim";
+        netEl.textContent = "—";
+      }
+    });
+
+    /* 分配结果 */
+    const validArrivals = arrivals.filter(a => parseFloat(a.qty) > 0);
+    const validBdms = bdms.filter(b => getBdmNet(b) !== null);
+
+    const resultBlock = document.getElementById("bdmResultBlock");
+    const emptyTip = document.getElementById("bdmEmpty");
+    const cards = document.getElementById("bdmResultCards");
+
+    if (total <= 0 || validArrivals.length === 0 || validBdms.length === 0) {
+      resultBlock.style.display = "none";
+      emptyTip.style.display = "block";
+      return;
+    }
+
+    resultBlock.style.display = "block";
+    emptyTip.style.display = "none";
+
+    /* 按 BDM 数量决定是否重建卡片 */
+    const existingCards = cards.querySelectorAll(".bdm-card");
+    if (existingCards.length !== validBdms.length) {
+      cards.innerHTML = "";
+      validBdms.forEach(b => cards.appendChild(buildBdmCard(b, validArrivals, total)));
+    } else {
+      existingCards.forEach((card, i) => updateBdmCard(card, validBdms[i], validArrivals, total));
+    }
+  }
+
+  /* ── 构建单个 BDM 卡片 ── */
+  function buildBdmCard(b, validArrivals, total) {
+    const card = document.createElement("div");
+    card.className = "bdm-card";
+
+    const header = document.createElement("div");
+    header.className = "bdm-card-header";
+    const nameEl = document.createElement("div");
+    nameEl.className = "bdm-card-name";
+    const netEl = document.createElement("div");
+    netEl.className = "bdm-card-net";
+    header.appendChild(nameEl);
+    header.appendChild(netEl);
+    card.appendChild(header);
+
+    /* 表头 */
+    const thead = document.createElement("div");
+    thead.className = "alloc-header";
+    thead.style.marginBottom = "6px";
+    ["赠品名称","占比","应领件数","箱规","应领箱数"].forEach((t, idx) => {
+      const s = document.createElement("span");
+      s.className = "col-label";
+      if (idx === 0) s.style.textAlign = "left";
+      s.textContent = t;
+      thead.appendChild(s);
+    });
+    card.appendChild(thead);
+
+    /* 行列表 */
+    const list = document.createElement("div");
+    list.className = "alloc-list";
+    validArrivals.forEach(() => {
+      const row = document.createElement("div");
+      row.className = "alloc-row";
+      for (let c = 0; c < 5; c++) {
+        const cell = document.createElement("div");
+        row.appendChild(cell);
+      }
+      list.appendChild(row);
+    });
+    card.appendChild(list);
+
+    updateBdmCard(card, b, validArrivals, total);
+    return card;
+  }
+
+  /* ── 更新单个 BDM 卡片内容 ── */
+  function updateBdmCard(card, b, validArrivals, total) {
+    const net = getBdmNet(b);
+    card.querySelector(".bdm-card-name").textContent = b.name || "未命名 BDM";
+    card.querySelector(".bdm-card-net").textContent = "净目标 " + net;
+
+    const rows = card.querySelectorAll(".alloc-row");
+    rows.forEach((row, i) => {
+      const a = validArrivals[i];
+      const arrQty = parseFloat(a.qty);
+      const pct = arrQty / total;
+      const allocQty = Math.floor(net * pct);
+      const spec = parseInt(a.spec);
+      const allocBox = (!isNaN(spec) && spec > 0) ? Math.floor(allocQty / spec) : null;
+
+      row.children[0].className = "alloc-name-cell";
+      row.children[0].textContent = a.name || "未命名";
+      row.children[0].title = a.name || "未命名";
+
+      row.children[1].className = "alloc-pct-cell";
+      row.children[1].textContent = (pct * 100).toFixed(1) + "%";
+
+      row.children[2].className = "result-pcs";
+      row.children[2].textContent = allocQty + " 件";
+
+      row.children[3].className = "alloc-spec-cell";
+      row.children[3].textContent = (!isNaN(spec) && spec > 0) ? spec + " 件/箱" : "—";
+
+      if (allocBox !== null) {
+        row.children[4].className = "result-box-val";
+        row.children[4].textContent = allocBox + " 箱";
+      } else {
+        row.children[4].className = "result-dim";
+        row.children[4].textContent = "—";
+      }
+    });
+  }
+
+  /* ════════════════════════════════
+     按钮事件
+  ════════════════════════════════ */
+  document.getElementById("btnAddArrival").addEventListener("click", () => {
+    arrivals.push({ name: "", qty: "", spec: "" });
+    document.getElementById("arrivalList").appendChild(initArrivalRow(arrivals.length - 1));
+    refreshCalc();
+  });
+
+  document.getElementById("btnAddBdm").addEventListener("click", () => {
+    bdms.push({ name: "", target: "", diff: "" });
+    document.getElementById("bdmInputList").appendChild(initBdmInputRow(bdms.length - 1));
+    refreshCalc();
+  });
+
+  /* ════════════════════════════════
+     初始化
+  ════════════════════════════════ */
+  rebuildArrivalList();
+  rebuildBdmInputList();
+  refreshCalc();
+</script>
+</body>
+</html>
